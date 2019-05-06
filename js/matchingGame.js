@@ -118,6 +118,7 @@ function preload() {
 
 
 function create() {
+    createPlayerData.call(this);
     resetGame.call(this);
     beginNextRound.call(this);
 
@@ -182,6 +183,7 @@ function startGame() {
     this.gameOver = false;
     fadeOutSprite(this.gameOverText, 0.3, 0, 1, false);
     beginNextRound.call(this);
+    createPlayerData.call(this);
 }
 
 function resetGame() {
@@ -277,10 +279,10 @@ function showPictureForBarcode(barcode) {
         const rightImage = this.imagePerBarcode[this.barcodesShowing.right];
         if (leftImage === rightImage) {
             // The two images are the same! Give the player a point!
+            registerBarcodePair.call(this, this.barcodesShowing.left, this.barcodesShowing.right);
+            // Then reset the images
             dismissRevealedImages.call(this);
             showTick.call(this);
-
-
         } else {
             // They are different! Let the player continue
             dismissRevealedImages.call(this);
@@ -298,6 +300,10 @@ function registerBarcodePair(barcodeA, barcodeB) {
     if (this.playerData.matchesThisRound >= MATCHING_GAME_CONFIG.matchesForWin) {
         this.playerData.roundIndex ++;
         this.timeoutMultiplyer *= MATCHING_GAME_CONFIG.speedIncreaseOnWin;
+        this.remainingTime += MATCHING_GAME_CONFIG.timeBonus;
+        if (this.remainingTime > MATCHING_GAME_CONFIG.duration) {
+            this.remainingTime = MATCHING_GAME_CONFIG.duration;
+        }
         beginNextRound.call(this);
     }
 }
@@ -305,7 +311,6 @@ function registerBarcodePair(barcodeA, barcodeB) {
 function beginNextRound() {
     resetRound.call(this);
     chooseRandomGroup.call(this);
-    createPlayerData.call(this);
     chooseBarcodeMappings.call(this);
     this.cameras.main.setBackgroundColor(getCurrentGroupData.call(this).bgColour);
 }
