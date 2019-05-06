@@ -132,6 +132,15 @@ function create() {
     this.gameOverText = this.add.text(PHASER_CONFIG.width * 0.5, PHASER_CONFIG.height * 0.5, "Game Over\nScan a barcode to start");
     fadeInSprite(this.gameOverText, 0.3, 1);
 
+    this.foundTicks = [];
+    for (let i = 0; i < MATCHING_GAME_CONFIG.matchesForWin; i++) {
+        const foundTick = this.physics.add.sprite(50 * i, PHASER_CONFIG.height, 'tick');
+        foundTick.setOrigin(0, 1);
+        foundTick.displayWidth = foundTick.displayHeight = 50;
+        foundTick.tint = 0;
+        this.foundTicks.push(foundTick);
+    }
+
     this.cameras.main.setBounds(0, 0, 800, 600);
     this.cameras.main.setBackgroundColor(getCurrentGroupData.call(this).bgColour);
 
@@ -217,6 +226,14 @@ function update(time, delta) {
 
         this.roundIndexText.text = "Round " + (this.playerData.roundIndex + 1);
         this.scoreText.text = "Score: " + this.playerData.matchesFound;
+
+        for (let i = 0; i < this.foundTicks.length; i++) {
+            if (this.playerData.matchesThisRound > i) {
+                this.foundTicks[i].tint = 0xFFFFFF;
+            } else {
+                this.foundTicks[i].tint = 0x000000;
+            }
+        }
 
         if (this.playerData.remainingTime <= 0) {
             this.playerData.remainingTime = 0;
