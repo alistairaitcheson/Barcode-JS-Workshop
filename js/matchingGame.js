@@ -211,6 +211,7 @@ function resetRound() {
     this.barcodesShowing = {left: null, right: null};
     this.foundImages = [];
     this.foundBarcodes = [];
+    this.playerData.matchesThisRound = 0;
 }
 
 function getCurrentGroupData() {
@@ -219,7 +220,7 @@ function getCurrentGroupData() {
 
 function update(time, delta) {
     if (this.gameOver) {
-        this.gameOverTime += delta;
+        this.gameOverTime += delta * 0.001;
     } else {
         this.playerData.remainingTime -= delta * 0.001 * this.timeoutMultiplyer;
         this.timerSprite.displayWidth = PHASER_CONFIG.width * (this.playerData.remainingTime / MATCHING_GAME_CONFIG.duration);
@@ -254,7 +255,7 @@ function onBarcodeRead(event) {
     console.log("Read barcode: ", event.detail.barcode);
 
     if (this.gameOver) {
-        if (this.gameOverTime > 1) {
+        if (this.gameOverTime > 1.5) {
             this.gameOver = false;
             startGame.call(this);
         }
@@ -265,6 +266,19 @@ function onBarcodeRead(event) {
 
 function showPictureForBarcode(barcode) {
     if (this.foundBarcodes.indexOf(barcode) !== -1) {
+        // Show the appropriate images!!
+        if (!this.barcodesShowing.left) {
+            const ghostImage = this.physics.add.sprite(PHASER_CONFIG.width * 0.25, PHASER_CONFIG.height * 0.4, this.imagePerBarcode[barcode]);
+            scaleImageToDimensions(ghostImage, PHASER_CONFIG.width * 0.4, PHASER_CONFIG.height * 0.5);
+            ghostImage.alpha = 0.5;
+            fadeOutSprite(ghostImage, 0.5, 0.3, 0.5);
+        } else {
+            const ghostImage = this.physics.add.sprite(PHASER_CONFIG.width * 0.75, PHASER_CONFIG.height * 0.4, this.imagePerBarcode[barcode]);
+            scaleImageToDimensions(ghostImage, PHASER_CONFIG.width * 0.4, PHASER_CONFIG.height * 0.5);
+            ghostImage.alpha = 0.5;
+            fadeOutSprite(ghostImage, 0.5, 0.3, 0.5);
+        }
+
         console.log("Already found barcode: ", barcode);
         return;
     }
