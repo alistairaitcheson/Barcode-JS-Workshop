@@ -158,11 +158,11 @@ function createPlayerData() {
 function chooseRandomGroup() {
     const allGroups = Object.keys(MATCHING_GAME_CONFIG.barcodeGroups);
 
-    if (!this.currentGroup || allGroups.length === 1) {
+    if (!this.currentGroupId || allGroups.length === 1) {
         this.currentGroupId = randomElementFromArray(allGroups);
     } else {
-        let nextGroupId = this.currentGroupId;
-        while (nextGroupColour === this.currentGroup.bgColour) {
+        const lastGroupId = this.currentGroupId;
+        while (lastGroupId === this.currentGroupId) {
             this.currentGroupId = randomElementFromArray(allGroups);
         }
     }
