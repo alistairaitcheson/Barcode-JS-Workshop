@@ -113,11 +113,24 @@ function preload() {
             this.loadedBarcodeImages[setKey].push(imageHandle);
         }
     }
+
+    this.load.audio('siren', 'assets/sound/siren.mp3');
+    this.load.audio('klaxon', 'assets/sound/klaxon.mp3');
+    this.load.audio('triangle', 'assets/sound/triangle ting.mp3');
+    this.load.audio('buzzer', 'assets/sound/buzzer.mp3');
 }
 
 
 
 function create() {
+    this.loadedSounds = {};
+
+    // load the sounds
+    this.loadedSounds.siren = this.sound.add('siren');
+    this.loadedSounds.klaxon = this.sound.add('klaxon');
+    this.loadedSounds.triangle = this.sound.add('triangle');
+    this.loadedSounds.buzzer = this.sound.add('buzzer');
+
     createPlayerData.call(this);
     resetGame.call(this);
     beginNextRound.call(this);
@@ -149,6 +162,12 @@ function create() {
 
     // Using bind, we ensure that "this" refers to GAME.scene
     document.addEventListener("barcodeRead", onBarcodeRead.bind(this));
+}
+
+function playSound(soundId) {
+    if (this.loadedSounds[soundId]) {
+        this.loadedSounds[soundId].play();
+    }
 }
 
 function createPlayerData() {
@@ -314,10 +333,14 @@ function showPictureForBarcode(barcode) {
             // Then reset the images
             dismissRevealedImages.call(this);
             showTick.call(this);
+            // And play a sound to indicate success!
+            playSound.call(this, "triangle");
         } else {
             // They are different! Let the player continue
             dismissRevealedImages.call(this);
             showCross.call(this);
+            // And play a sound to indicate failure!
+            playSound.call(this, "klaxon");
         }
     }
 }
@@ -344,6 +367,9 @@ function beginNextRound() {
     chooseRandomGroup.call(this);
     chooseBarcodeMappings.call(this);
     this.cameras.main.setBackgroundColor(getCurrentGroupData.call(this).bgColour);
+
+    // And play a sound to indicate a new start!
+    playSound.call(this, "siren");
 }
 
 function showTick() {
