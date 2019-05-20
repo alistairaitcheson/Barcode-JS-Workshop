@@ -1,4 +1,5 @@
-// config
+// ---- CONFIG AND INITIALISATION ---
+
 const PHASER_CONFIG = {
     type: Phaser.AUTO,
     width: window.innerWidth,
@@ -37,7 +38,6 @@ const MATCHING_GAME_CONFIG = {
     // This will make every barcode vest in Alistair's collection a scannable
     // barcode! Have a go at playing the game like this, then try using the
     // commented-out variables below. What do you notice?
-    /*
     barcodeGroups: {
         allBarcodes: {
             bgColour: 0x666666,
@@ -47,8 +47,7 @@ const MATCHING_GAME_CONFIG = {
         },
     },
     matchesForWin: 10,
-    */
-    /**/
+    /*
     barcodeGroups: {
         red: {
             bgColour: 0xFF4444,
@@ -64,11 +63,12 @@ const MATCHING_GAME_CONFIG = {
         },
     },
     matchesForWin: 3,
-    /**/
+    */
     // Is this something you could change too?
     barcodeImageSets: {pokemon: generatePokemonImagePaths()},
 }
 
+// These player stats will be used every time the player starts a new game
 const DEFAULT_PLAYER_STATS = {
     remainingTime: MATCHING_GAME_CONFIG.duration,
     matchesFound: 0,
@@ -102,6 +102,7 @@ function preload() {
     // Keep track of every image that a barcode could spawn
     this.loadedBarcodeImages = {};
 
+    // Load all the images that can be summoned by barcodes
     const imageSetKeys = Object.keys(MATCHING_GAME_CONFIG.barcodeImageSets);
     for (setKey of imageSetKeys) {
         const imagePaths = MATCHING_GAME_CONFIG.barcodeImageSets[setKey];
@@ -114,15 +115,29 @@ function preload() {
         }
     }
 
+    // Load the sound effects
     this.load.audio('siren', 'assets/sound/siren.mp3');
     this.load.audio('klaxon', 'assets/sound/klaxon.mp3');
     this.load.audio('triangle', 'assets/sound/triangle ting.mp3');
     this.load.audio('buzzer', 'assets/sound/buzzer.mp3');
 }
 
+/*
+    Converts an image path to a short string to access it by. For example
+    "path/to/foler/file_name.png" --> "file_name"
+ */
+function getImageIdFromPath(imagePath) {
+    const filePathAsArray = imagePath.split('/');
+    const imageFileName = filePathAsArray[filePathAsArray.length - 1];
+    const imageHandle = imageFileName.split('.')[0];
+    return imageHandle
+}
 
-
+/*
+    Called by Phaser to initialise the game after preload
+ */
 function create() {
+    // Add the sounds into an object and make it accessible
     this.loadedSounds = {};
 
     // load the sounds
@@ -131,28 +146,13 @@ function create() {
     this.loadedSounds.triangle = this.sound.add('triangle');
     this.loadedSounds.buzzer = this.sound.add('buzzer');
 
+    // Create the initial play data, as if starting a fresh game
     createPlayerData.call(this);
     resetGame.call(this);
     beginNextRound.call(this);
 
-    this.timerSprite = this.physics.add.sprite(0, 0, 'whiteSquare64');
-    this.timerSprite.displayHeight = PHASER_CONFIG.height * 0.05;
-    this.timerSprite.setOrigin(0, 0);
-
-    this.roundIndexText = this.add.text(0,PHASER_CONFIG.height * 0.05, "Round: ");
-    this.scoreText = this.add.text(0,PHASER_CONFIG.height * 0.05 + this.roundIndexText.displayHeight, "Score: ");
-
-    this.gameOverText = this.add.text(PHASER_CONFIG.width * 0.5, PHASER_CONFIG.height * 0.5, "Game Over\nScan a barcode to start");
-    fadeInSprite(this.gameOverText, 0.3, 1);
-
-    this.foundTicks = [];
-    for (let i = 0; i < MATCHING_GAME_CONFIG.matchesForWin; i++) {
-        const foundTick = this.physics.add.sprite(50 * i, PHASER_CONFIG.height, 'tick');
-        foundTick.setOrigin(0, 1);
-        foundTick.displayWidth = foundTick.displayHeight = 50;
-        foundTick.tint = 0;
-        this.foundTicks.push(foundTick);
-    }
+    // Generate the sprites that show player progress
+    generateHUD.call(this);
 
     this.cameras.main.setBounds(0, 0, 800, 600);
     this.cameras.main.setBackgroundColor(getCurrentGroupData.call(this).bgColour);
@@ -164,6 +164,34 @@ function create() {
     document.addEventListener("barcodeRead", onBarcodeRead.bind(this));
 }
 
+function generateHUD() {
+    // Add the sprite for the time ticking down
+    this.timerSprite = this.physics.add.sprite(0, 0, 'whiteSquare64');
+    this.timerSprite.displayHeight = PHASER_CONFIG.height * 0.05;
+    this.timerSprite.setOrigin(0, 0);
+
+    // Add the text for current round and current score
+    this.roundIndexText = this.add.text(0,PHASER_CONFIG.height * 0.05, "Round: ");
+    this.scoreText = this.add.text(0, PHASER_CONFIG.height * 0.05 + this.roundIndexText.displayHeight, "Score: ");
+
+    // Add the text for game over
+    this.gameOverText = this.add.text(PHASER_CONFIG.width * 0.5, PHASER_CONFIG.height * 0.5, "Game Over\nScan a barcode to start");
+    fadeInSprite(this.gameOverText, 0.3, 1);
+
+    // Add the ticks at the bottom of the screen to show progress in this round
+    this.foundTicks = [];
+    for (let i = 0; i < MATCHING_GAME_CONFIG.matchesForWin; i++) {
+        const foundTick = this.physics.add.sprite(50 * i, PHASER_CONFIG.height, 'tick');
+        foundTick.setOrigin(0, 1);
+        foundTick.displayWidth = foundTick.displayHeight = 50;
+        foundTick.tint = 0;
+        this.foundTicks.push(foundTick);
+    }
+}
+
+/*
+    Plays a sound effect for the given ID string
+ */
 function playSound(soundId) {
     if (this.loadedSounds[soundId]) {
         this.loadedSounds[soundId].play();
@@ -174,6 +202,11 @@ function createPlayerData() {
     this.playerData = Object.assign({}, DEFAULT_PLAYER_STATS);
 }
 
+/*
+    Chooses a group of barcodes to use. If there is more than one group of
+    barcodes avaulable, it will make sure it doesn't use the same group twice
+    in a row
+ */
 function chooseRandomGroup() {
     const allGroups = Object.keys(MATCHING_GAME_CONFIG.barcodeGroups);
 
@@ -187,6 +220,10 @@ function chooseRandomGroup() {
     }
 }
 
+/*
+    Randomly assigns each active barcode to an image, so that each image is
+    mapped to two different barcodes
+ */
 function chooseBarcodeMappings() {
     this.imagePerBarcode = {};
 
@@ -207,6 +244,9 @@ function chooseBarcodeMappings() {
     return this.imagePerBarcode;
 }
 
+/*
+    Called when a game is started. Resets data to match a new active game.
+ */
 function startGame() {
     this.gameOver = false;
     fadeOutSprite(this.gameOverText, 0.3, 0, 1, false);
@@ -218,6 +258,10 @@ function resetGame() {
     this.timeoutMultiplyer = 1;
 }
 
+/*
+    Show the game over screen and raise the gameOver flag to prevent players
+    from continuing
+ */
 function showGameOver() {
     this.gameOver = true;
     this.gameOverTime = 0;
@@ -226,6 +270,10 @@ function showGameOver() {
     dismissRevealedImages.call(this);
 }
 
+/*
+    Show the game over screen and raise the gameOver flag to prevent players
+    from continuing
+ */
 function resetRound() {
     this.barcodesShowing = {left: null, right: null};
     this.foundImages = [];
@@ -233,20 +281,33 @@ function resetRound() {
     this.playerData.matchesThisRound = 0;
 }
 
+/*
+    Get the settings that correspond to the group of barcodes currently being
+    used. Settings are of the form { bgColour: [integer], barcodes: [Array]}
+ */
 function getCurrentGroupData() {
     return MATCHING_GAME_CONFIG.barcodeGroups[this.currentGroupId];
 }
 
+/*
+    Called once per frame
+ */
 function update(time, delta) {
     if (this.gameOver) {
+        // If the game is over, increase a timer so we can tell when it is okay
+        // to let the player restart
         this.gameOverTime += delta * 0.001;
     } else {
+        // Otherwise, the game is active. Make the play timer run out
         this.playerData.remainingTime -= delta * 0.001 * this.timeoutMultiplyer;
+        // Make the timer bar match the time remaining
         this.timerSprite.displayWidth = PHASER_CONFIG.width * (this.playerData.remainingTime / MATCHING_GAME_CONFIG.duration);
 
+        // Show the player's current score
         this.roundIndexText.text = "Round " + (this.playerData.roundIndex + 1);
         this.scoreText.text = "Score: " + this.playerData.matchesFound;
 
+        // Show how many matches the player has found in this group
         for (let i = 0; i < this.foundTicks.length; i++) {
             if (this.playerData.matchesThisRound > i) {
                 this.foundTicks[i].tint = 0xFFFFFF;
@@ -255,6 +316,7 @@ function update(time, delta) {
             }
         }
 
+        // Check to see if time has run out
         if (this.playerData.remainingTime <= 0) {
             this.playerData.remainingTime = 0;
             showGameOver.call(this);
@@ -262,30 +324,34 @@ function update(time, delta) {
     }
 }
 
-function getImageIdFromPath(imagePath) {
-    const filePathAsArray = imagePath.split('/');
-    const imageFileName = filePathAsArray[filePathAsArray.length - 1];
-    const imageHandle = imageFileName.split('.')[0];
-    return imageHandle
-}
+/*
+    Callback fired when a barcode has been read
 
+    Using "bind" during inisialisation, we ensure that "this" refers to GAME.scene
+ */
 function onBarcodeRead(event) {
-    // Using bind, we ensure that "this" refers to GAME.scene
     console.log("Read barcode: ", event.detail.barcode);
 
     if (this.gameOver) {
+        // If the game is over, check to see if the game should be restarted
         if (this.gameOverTime > 1.5) {
             this.gameOver = false;
             startGame.call(this);
         }
     } else {
+        // Otherwise, show the picture that corresponds to this barcode
         showPictureForBarcode.call(this, event.detail.barcode);
     }
 }
 
+/*
+    Displays the picture associated with this barcode if possible.
+    Checks to see if this corresponds to a matching pair.
+ */
 function showPictureForBarcode(barcode) {
+    // If we have already matched this barcode, show its image as a ghost in
+    // the empty space
     if (this.foundBarcodes.indexOf(barcode) !== -1) {
-        // Show the appropriate images!!
         if (!this.barcodesShowing.left) {
             const ghostImage = this.physics.add.sprite(PHASER_CONFIG.width * 0.25, PHASER_CONFIG.height * 0.4, this.imagePerBarcode[barcode]);
             scaleImageToDimensions(ghostImage, PHASER_CONFIG.width * 0.4, PHASER_CONFIG.height * 0.5);
@@ -302,17 +368,20 @@ function showPictureForBarcode(barcode) {
         return;
     }
 
+    // If this barcode is not in our current barcode group, ignore it
     if (!this.imagePerBarcode[barcode]) {
         console.log("Barcode is not in the current set: ", barcode);
         return;
     }
 
+    // If this barcode is already on display, ignore it
     if (barcode === this.barcodesShowing.left) {
         console.log("Barcode is already being shown: ", barcode);
         return;
     }
 
-    // Show the appropriate images!!
+    // Otherwise, show this image on the left if there is no image on the left,
+    // and on the right if there is one
     if (!this.barcodesShowing.left) {
         this.barcodesShowing.left = barcode;
         this.leftImage = this.physics.add.sprite(PHASER_CONFIG.width * 0.25, PHASER_CONFIG.height * 0.4, this.imagePerBarcode[barcode]);
@@ -323,7 +392,7 @@ function showPictureForBarcode(barcode) {
         scaleImageToDimensions(this.rightImage, PHASER_CONFIG.width * 0.4, PHASER_CONFIG.height * 0.5);
     }
 
-    // Check to see if we have a matching pair
+    // Check to see if we have found a matching pair
     if (this.barcodesShowing.left && this.barcodesShowing.right) {
         const leftImage = this.imagePerBarcode[this.barcodesShowing.left];
         const rightImage = this.imagePerBarcode[this.barcodesShowing.right];
@@ -345,19 +414,30 @@ function showPictureForBarcode(barcode) {
     }
 }
 
+/*
+    Called when the player has found two matching barcodes. Tracks that this
+    pair has been matched and adds to the player's score
+ */
 function registerBarcodePair(barcodeA, barcodeB) {
     this.foundBarcodes.push(barcodeA);
     this.foundBarcodes.push(barcodeB);
 
     this.playerData.matchesFound ++;
     this.playerData.matchesThisRound ++;
+    // Check to see if the player has done enough to advance to a new round
     if (this.playerData.matchesThisRound >= MATCHING_GAME_CONFIG.matchesForWin) {
         this.playerData.roundIndex ++;
+        // Make the timer time out faster
         this.timeoutMultiplyer *= MATCHING_GAME_CONFIG.speedIncreaseOnWin;
+
+        // Give the player a time bonus, without giving them more than the
+        // maximum time
         this.remainingTime += MATCHING_GAME_CONFIG.timeBonus;
         if (this.remainingTime > MATCHING_GAME_CONFIG.duration) {
             this.remainingTime = MATCHING_GAME_CONFIG.duration;
         }
+
+        // Start a new round
         beginNextRound.call(this);
     }
 }
@@ -372,6 +452,9 @@ function beginNextRound() {
     playSound.call(this, "siren");
 }
 
+/*
+    Called when the player finds a matching pair. Shows a big green tick
+ */
 function showTick() {
     const tickLeft = this.physics.add.sprite(PHASER_CONFIG.width * 0.5, PHASER_CONFIG.height * 0.75, 'tick');
     scaleImageToDimensions(tickLeft, PHASER_CONFIG.width * 0.3, PHASER_CONFIG.height * 0.3);
@@ -379,6 +462,9 @@ function showTick() {
     fadeOutSprite(tickLeft, 0.3, 0.7);
 }
 
+/*
+    Called when the player's pair does not match. Shows a big red cross
+ */
 function showCross() {
     const crossLeft = this.physics.add.sprite(PHASER_CONFIG.width * 0.5, PHASER_CONFIG.height * 0.75, 'cross');
     scaleImageToDimensions(crossLeft, PHASER_CONFIG.width * 0.3, PHASER_CONFIG.height * 0.3);
@@ -386,6 +472,10 @@ function showCross() {
     fadeOutSprite(crossLeft, 0.3, 1.15);
 }
 
+/*
+    Called when the player has found a pair. Causes the two current images to
+    fade out, and frees up the points so the player can check new barcodes
+ */
 function dismissRevealedImages() {
     if (this.leftImage) {
         fadeOutSprite.call(this, this.leftImage, 0.3, 0.85);
@@ -399,6 +489,9 @@ function dismissRevealedImages() {
     this.barcodesShowing = {left: null, right: null};
 }
 
+/*
+    Calling this will cause a sprite to fade in over time
+ */
 function fadeOutSprite(sprite, duration = 1, delay = 0, maxAlpha = 1, shouldDestroy = true) {
     const totalSteps = 100;
     let stepsTaken = 0;
@@ -420,6 +513,9 @@ function fadeOutSprite(sprite, duration = 1, delay = 0, maxAlpha = 1, shouldDest
     setTimeout(performFadeOutStep, delay * 1000)
 }
 
+/*
+    Calling this will cause a sprite to fade out over time
+ */
 function fadeInSprite(sprite, duration = 1, delay = 0, maxAlpha = 1) {
     sprite.alpha = 0;
 
@@ -441,11 +537,9 @@ function fadeInSprite(sprite, duration = 1, delay = 0, maxAlpha = 1) {
     setTimeout(performFadeInStep, delay * 1000)
 }
 
-function scaleImageToWidth(image, width) {
-    image.displayWidth = width;
-    image.displayHeight = image.displayWidth * (image.width / image.height);
-}
-
+/*
+    Scales an image to fit inside given dimensions while maintaining its proportions
+ */
 function scaleImageToDimensions(image, width, height) {
     image.displayWidth = width;
     image.displayHeight = image.displayWidth * (image.height / image.width);
@@ -464,6 +558,9 @@ function randomInteger(min, max) {
     return min + Math.floor(Math.random()*(max - min));
 }
 
+/*
+    Returns a copy of the array with the elements in a random order
+ */
 function shuffledArray(array) {
     const srcArray = array.slice();
     const destArray = [];
