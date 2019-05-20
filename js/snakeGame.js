@@ -82,23 +82,14 @@ function create() {
     document.addEventListener("barcodeRead", onBarcodeRead.bind(this));
 }
 
+/*
+    Creates a fresh set of players in random positions
+ */
 function resetPlayers() {
     this.playerStates = [];
     const usedPositions = [];
     for (const player of SNAKE_GAME_CONFIG.playerDefs) {
-        let randomPosition = null;
-        while (!randomPosition) {
-            randomPosition = {
-                x: randomInteger(0, SNAKE_GAME_CONFIG.gridSize.width),
-                y: randomInteger(0, SNAKE_GAME_CONFIG.gridSize.height),
-            };
-            for (const position of usedPositions) {
-                if (position.x === randomPosition.x || position.y === randomPosition.y) {
-                    randomPosition = null;
-                    break;
-                }
-            }
-        }
+        let randomPosition = getUnoccupiedPosition.call(this);
         this.playerStates.push({
             direction: null,
             score: 0,
@@ -109,6 +100,10 @@ function resetPlayers() {
     }
 }
 
+/*
+    Makes the powerup timer snap to a new random time (an integer number of
+    seconds between the two bounds given in config)
+ */
 function resetPowerUpTimer() {
     this.nextPowerUpTime = randomInteger(
         SNAKE_GAME_CONFIG.powerUpSpawnPeriod[0],
@@ -116,6 +111,9 @@ function resetPowerUpTimer() {
     );
 }
 
+/*
+    Create a grid of square tiles that will be used to render the game state
+ */
 function generateGrid() {
     const tileWidth = PHASER_CONFIG.width / SNAKE_GAME_CONFIG.gridSize.width;
     const tileHeight = PHASER_CONFIG.height / SNAKE_GAME_CONFIG.gridSize.height;
@@ -135,16 +133,19 @@ function generateGrid() {
 function update(time, delta) {
     // Currently the game just halts once all but 1 player is left alive
     if (!gameIsEnded.call(this)) {
+        // Wait periodically to check if
         this.moveTime += delta * 0.001 * SNAKE_GAME_CONFIG.moveSpeed;
         if (this.moveTime >= 1) {
             this.moveTime -= 1;
             moveAllPlayers.call(this);
 
-            // check for collisions!
+            // check for collisions with players
             checkForPlayerCollisions.call(this);
+            // check for picking up powerups
             checkForPowerUpCollisions.call(this);
         }
 
+        // Increase the powerup timer once both players are moving
         if (allPlayersMoving.call(this)) {
             this.nextPowerUpTime -= delta * 0.001;
             if (this.nextPowerUpTime <= 0) {
@@ -158,6 +159,9 @@ function update(time, delta) {
     }
 }
 
+/*
+    @return true if one of fewer players are alive
+ */
 function gameIsEnded() {
     const livingPlayers = this.playerStates.filter(player => player.alive);
     if (livingPlayers.length <= 1) {
@@ -165,17 +169,23 @@ function gameIsEnded() {
     }
 }
 
+/*
+    Picks a random location on the board and puts a powerup there
+ */
 function spawnPowerUp() {
-    const spawnPos = getUnoccupiedPosition.call(this);
+    const spawnPos = getUnoccupiedPosition.call(this, 100);
     if (spawnPos) {
         this.powerUps.push(spawnPos);
     }
 }
 
-function getUnoccupiedPosition() {
+/*
+    @return a position where no player or powerup currently resides
+ */
+function getUnoccupiedPosition(maxAttempts = Infinity) {
     let attemptCount = 0;
     let position = null;
-    while (!position && attemptCount < 100) {
+    while (!position && attemptCount < maxAttempts) {
         position = {
             x: randomInteger(0, SNAKE_GAME_CONFIG.gridSize.width),
             y: randomInteger(0, SNAKE_GAME_CONFIG.gridSize.height)
@@ -188,6 +198,9 @@ function getUnoccupiedPosition() {
     return position;
 }
 
+/*
+    @return true if there is a player or powerup in this position
+ */
 function positionIsOccupied(position) {
     for (const player of this.playerStates) {
         for (const tailPos of player.positions) {
@@ -206,7 +219,9 @@ function positionIsOccupied(position) {
     return false;
 }
 
-
+/*
+    @return true if all players have a direction of travel
+ */
 function allPlayersMoving() {
     for (const player of this.playerStates) {
         if (!player.direction) {
@@ -216,6 +231,10 @@ function allPlayersMoving() {
     return true;
 }
 
+/*
+    Colour all tiles in the grid based on which objects (players and powerups)
+    share their coordinates
+ */
 function updateGrid() {
     for (const gridRef of this.spriteGrid) {
         const playerInPos = playerInGridPosition.call(this, gridRef.gridPos);
@@ -237,6 +256,10 @@ function updateGrid() {
     }
 }
 
+/*
+    @return the index (0 = red player, 1 = blue player...) of the player whose
+            snake is in the current tile. Null if no player is in the tile
+ */
 function playerInGridPosition(position) {
     for (let i = 0; i < this.playerStates.length; i++) {
         const player = this.playerStates[i];
@@ -249,6 +272,9 @@ function playerInGridPosition(position) {
     return null;
 }
 
+/*
+    @return true if and only if a powerup is in this location
+ */
 function powerUpInGridPosition(position) {
     for (const powerUp of this.powerUps) {
         if (powerUp.x === position.x && powerUp.y === position.y) {
@@ -258,6 +284,10 @@ function powerUpInGridPosition(position) {
     return false;
 }
 
+/*
+    For each player, check what direction they're moving in and move them one
+    step in that direction
+ */
 function moveAllPlayers() {
     for (const player of this.playerStates) {
         if (player.direction && player.alive) {
@@ -290,6 +320,11 @@ function moveAllPlayers() {
     }
 }
 
+/*
+    Check each player against each other player and themselves. If the first
+    square (the head of the snake) overlaps with another snake tile then
+    the player should be set to a dead state
+ */
 function checkForPlayerCollisions() {
     for (let i = 0; i < this.playerStates.length; i++) {
         const player = this.playerStates[i];
@@ -317,6 +352,10 @@ function killPlayer(index) {
     this.playerStates[index].alive = false;
 }
 
+/*
+    Checks if any players' heads are intersecting any powerups. If so, add some
+    extra tiles to the snake
+ */
 function checkForPowerUpCollisions() {
     for (let i = 0; i < this.playerStates.length; i++) {
         const player = this.playerStates[i];
@@ -333,7 +372,10 @@ function checkForPowerUpCollisions() {
     }
 }
 
-
+/*
+    Called when a barcode is read. If there is a player who has a direction
+    which matches this barcode, move their snake in that direction
+ */
 function onBarcodeRead(event) {
     const barcode = event.detail.barcode;
     console.log("Processing barcode ", barcode);
